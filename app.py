@@ -6,7 +6,7 @@ Run with:
     streamlit run app.py
 
 Loads the model + preprocessing objects saved by train_ann_final.py
-(heart_disease_ann_model.pkl, scaler.pkl, imputer.pkl, feature_names.pkl)
+(heart_disease_ann_model.pkl, scaler.pkl, feature_names.pkl)
 and lets the user enter a patient's data to get a live prediction.
 """
 
@@ -29,7 +29,8 @@ st.set_page_config(
 # -----------------------------
 GENDER_MAP = {"Male": 1, "Female": 0}
 SMOKING_MAP = {"Never": 0, "Former": 1, "Current": 2}
-ALCOHOL_MAP = {"Low": 0, "Moderate": 1, "High": 2}
+# "None" represents patients who do not drink alcohol at all (not missing data).
+ALCOHOL_MAP = {"None": 0, "Low": 1, "Moderate": 2, "High": 3}
 ACTIVITY_MAP = {"Sedentary": 0, "Moderate": 1, "Active": 2}
 DIET_MAP = {"Unhealthy": 0, "Average": 1, "Healthy": 2}
 STRESS_MAP = {"Low": 0, "Medium": 1, "High": 2}
@@ -41,7 +42,7 @@ NUMERIC_RANGES = {
 }
 
 REQUIRED_FILES = [
-    "heart_disease_ann_model.pkl", "scaler.pkl", "imputer.pkl", "feature_names.pkl"
+    "heart_disease_ann_model.pkl", "scaler.pkl", "feature_names.pkl"
 ]
 
 
@@ -58,9 +59,8 @@ def load_artifacts():
         )
     model = joblib.load("heart_disease_ann_model.pkl")
     scaler = joblib.load("scaler.pkl")
-    imputer = joblib.load("imputer.pkl")
     feature_names = joblib.load("feature_names.pkl")
-    return model, scaler, imputer, feature_names
+    return model, scaler, feature_names
 
 
 def encode_categorical(patient: dict) -> pd.DataFrame:
@@ -87,7 +87,7 @@ def validate_numeric(patient: dict) -> list:
     return errors
 
 
-def predict(patient: dict, model, scaler, imputer, feature_names):
+def predict(patient: dict, model, scaler, feature_names):
     errors = validate_numeric(patient)
     if errors:
         raise ValueError(" / ".join(errors))
@@ -97,8 +97,7 @@ def predict(patient: dict, model, scaler, imputer, feature_names):
         raise ValueError("One or more selections could not be processed. Please check your inputs.")
 
     p = p[feature_names]
-    p_imputed = pd.DataFrame(imputer.transform(p), columns=feature_names)
-    p_scaled = scaler.transform(p_imputed)
+    p_scaled = scaler.transform(p)
 
     pred = model.predict(p_scaled)[0]
     proba = model.predict_proba(p_scaled)[0][1]
@@ -114,12 +113,10 @@ st.caption(
 )
 st.markdown(
     "Enter a patient's information below to estimate their risk of heart disease. "
-    "This tool is a **student project prototype** trained on a synthetic dataset "
-    "and is **not** a medical diagnostic tool."
 )
 
 try:
-    model, scaler, imputer, feature_names = load_artifacts()
+    model, scaler, feature_names = load_artifacts()
 except FileNotFoundError as e:
     st.error(f"\u26a0\ufe0f {e}")
     st.stop()
@@ -184,7 +181,7 @@ if submitted:
     }
 
     try:
-        pred_label, pred_proba = predict(patient, model, scaler, imputer, feature_names)
+        pred_label, pred_proba = predict(patient, model, scaler, feature_names)
     except ValueError as e:
         st.error(f"\u26a0\ufe0f Invalid input: {e}")
     except Exception as e:
